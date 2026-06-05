@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+sqlalchemy
+psycopg[binary]
+pandas
+sentence-transformers
+langchain==0.3.27
+langchain_community
+langchain_openai
+langchain_huggingface
+huggingface_hub[hf_xet]
+langchain-postgres
+langchain-google-genai
+redis
+pypdf
+python-docx
+httpx

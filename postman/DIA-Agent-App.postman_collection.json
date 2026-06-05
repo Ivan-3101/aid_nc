@@ -1,0 +1,1025 @@
+{
+  "info": {
+    "_postman_id": "dia-agent-app-v1",
+    "name": "DIA — DronaPay Intelligent Agent",
+    "description": "Complete test collection for the DIA FastAPI service.\n\n**Setup:**\n1. Set `baseUrl` to your running instance (default: http://localhost:8000)\n2. Set `username` / `password` to match REST_USER / REST_PWD in your .env\n3. Set `tenantId` (seed data uses 17)\n4. Run the **Setup** folder first to initialise collection variables\n\n**Auth:** HTTP Basic is applied at collection level — all requests inherit it.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "basic",
+    "basic": [
+      { "key": "username", "value": "{{username}}", "type": "string" },
+      { "key": "password", "value": "{{password}}", "type": "string" }
+    ]
+  },
+  "variable": [
+    { "key": "baseUrl",    "value": "http://localhost:8000", "type": "string" },
+    { "key": "username",   "value": "admin",                 "type": "string" },
+    { "key": "password",   "value": "changeme",              "type": "string" },
+    { "key": "tenantId",   "value": "17",                    "type": "string" },
+    { "key": "documentId", "value": "",                      "type": "string",
+      "description": "Set by POST /ingest_document test script" },
+    { "key": "versionId",  "value": "",                      "type": "string",
+      "description": "Set by POST /ingest_document test script" },
+    { "key": "internalSecret", "value": "test-internal-secret", "type": "string" }
+  ],
+  "item": [
+
+    {
+      "name": "🔐 Authentication",
+      "description": "Verify that endpoints enforce HTTP Basic auth.",
+      "item": [
+        {
+          "name": "Valid credentials — should pass (200 or 404)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/agent", "host": ["{{baseUrl}}"], "path": ["agent"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agentid\": \"nonexistent_agent\",\n  \"data\": {}\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Valid credentials not rejected', function () {",
+              "    pm.expect(pm.response.code).to.not.equal(401);",
+              "    pm.expect(pm.response.code).to.not.equal(403);",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "No credentials — 401",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/agent", "host": ["{{baseUrl}}"], "path": ["agent"] },
+            "body": { "mode": "raw", "raw": "{\"agentid\": \"userManual\", \"data\": {}}" }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('No auth returns 401', function () {",
+              "    pm.response.to.have.status(401);",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "Wrong credentials — 401",
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                { "key": "username", "value": "wrong_user", "type": "string" },
+                { "key": "password", "value": "wrong_pass", "type": "string" }
+              ]
+            },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/agent", "host": ["{{baseUrl}}"], "path": ["agent"] },
+            "body": { "mode": "raw", "raw": "{\"agentid\": \"userManual\", \"data\": {}}" }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Wrong credentials return 401', function () {",
+              "    pm.response.to.have.status(401);",
+              "});"
+            ]}
+          }]
+        }
+      ]
+    },
+
+    {
+      "name": "🤖 Agent — Run",
+      "description": "POST /agent for each configured agent.\n\nAll agents require `itenantid` in input_data. Prerequisites (DB lookups) run first; similar cases are retrieved from PGVector; LLM generates the final response.",
+      "item": [
+        {
+          "name": "caseagentv1 — Fraud case analysis",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/agent", "host": ["{{baseUrl}}"], "path": ["agent"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agentid\": \"caseagentv1\",\n  \"data\": {\n    \"RuleSpecificL1Action\": \"FLAG\",\n    \"RuleID\": \"4231\",\n    \"CaseID\": \"TXN-9182736\",\n    \"BatchDate\": \"2024-03-15\",\n    \"itenantid\": {{tenantId}},\n    \"iaccountid\": 10001,\n    \"icustomerid\": 20001\n  }\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Response has decision or comment', function () {",
+              "    var body = pm.response.json();",
+              "    pm.expect(body).to.have.any.keys(['decision', 'comment', 'answer']);",
+              "});",
+              "pm.test('Response is JSON', function () {",
+              "    pm.response.to.be.json;",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "userManual — Help query",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/agent", "host": ["{{baseUrl}}"], "path": ["agent"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agentid\": \"userManual\",\n  \"data\": {\n    \"itenantid\": {{tenantId}},\n    \"user_query\": \"How do I configure a payment rule in DronaPay?\"\n  }\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Response has answer', function () {",
+              "    var body = pm.response.json();",
+              "    pm.expect(body).to.have.property('answer');",
+              "    pm.expect(body.answer).to.be.a('string');",
+              "    pm.expect(body.answer.length).to.be.above(0);",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "userManual — Off-topic query (tests guardrails)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/agent", "host": ["{{baseUrl}}"], "path": ["agent"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agentid\": \"userManual\",\n  \"data\": {\n    \"itenantid\": {{tenantId}},\n    \"user_query\": \"What is the capital of France?\"\n  }\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 — out-of-scope handled gracefully', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Has answer field', function () {",
+              "    pm.expect(pm.response.json()).to.have.property('answer');",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "rulesDev — Create new rule",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/agent", "host": ["{{baseUrl}}"], "path": ["agent"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agentid\": \"rulesDev\",\n  \"data\": {\n    \"itenantid\": {{tenantId}},\n    \"user_query\": \"Create a rule to flag transactions above 50000 INR from merchants with less than 30 days of activity.\",\n    \"rule_expectation\": \"Flag high-value transactions from new unverified merchants.\"\n  }\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Response has answer with JSON logic', function () {",
+              "    var body = pm.response.json();",
+              "    pm.expect(body).to.have.property('answer');",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "sqlagentv1 — Generate SQL query",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/agent", "host": ["{{baseUrl}}"], "path": ["agent"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agentid\": \"sqlagentv1\",\n  \"data\": {\n    \"itenantid\": {{tenantId}},\n    \"user_query\": \"Get total transaction amount grouped by merchant for last 30 days\",\n    \"query_expectation\": \"Monthly merchant transaction totals\"\n  }\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Has answer', function () {",
+              "    pm.expect(pm.response.json()).to.have.property('answer');",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "uinavigatorv1 — Navigate to feature",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/agent", "host": ["{{baseUrl}}"], "path": ["agent"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agentid\": \"uinavigatorv1\",\n  \"data\": {\n    \"itenantid\": {{tenantId}},\n    \"iTenantID\": {{tenantId}},\n    \"user_query\": \"Where do I find the transaction alert settings?\"\n  }\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Has instructions', function () {",
+              "    pm.expect(pm.response.json()).to.have.property('instructions');",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "orchestratorAgent — Route user query",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/agent", "host": ["{{baseUrl}}"], "path": ["agent"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agentid\": \"orchestratorAgent\",\n  \"data\": {\n    \"itenantid\": {{tenantId}},\n    \"iuserid\": 42,\n    \"user_query\": \"How do I add a new fraud detection rule?\"\n  }\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Orchestrator routes or answers', function () {",
+              "    var body = pm.response.json();",
+              "    var hasRouting = body.agentid !== undefined && body.data !== undefined;",
+              "    var hasAnswer  = body.answer !== undefined;",
+              "    pm.expect(hasRouting || hasAnswer).to.be.true;",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "Unknown agent — 404",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/agent", "host": ["{{baseUrl}}"], "path": ["agent"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agentid\": \"agent_that_does_not_exist\",\n  \"data\": { \"itenantid\": {{tenantId}} }\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Unknown agent returns 404', function () {",
+              "    pm.response.to.have.status(404);",
+              "});"
+            ]}
+          }]
+        }
+      ]
+    },
+
+    {
+      "name": "📋 Agent — Utility",
+      "item": [
+        {
+          "name": "POST /add_to_vectorstore — caseagentv1 (single strategy)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/add_to_vectorstore", "host": ["{{baseUrl}}"], "path": ["add_to_vectorstore"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agentid\": \"caseagentv1\",\n  \"data\": {\n    \"RuleSpecificL1Action\": \"FLAG\",\n    \"ruleid\": \"4231\",\n    \"caseid\": \"TXN-9182736\",\n    \"batchdate\": \"2024-03-15\",\n    \"itenantid\": {{tenantId}},\n    \"iaccountid\": 10001,\n    \"icustomerid\": 20001\n  }\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Success message returned', function () {",
+              "    var body = pm.response.json();",
+              "    pm.expect(body.message).to.include('successfully');",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "POST /add_to_vectorstore — userManual (page strategy)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/add_to_vectorstore", "host": ["{{baseUrl}}"], "path": ["add_to_vectorstore"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agentid\": \"userManual\",\n  \"data\": {\n    \"Date\": \"2024-03-15\",\n    \"DocName\": \"DronaPay API Guide\",\n    \"Page ID\": 42,\n    \"Version\": 6,\n    \"itenantid\": {{tenantId}},\n    \"user_query\": \"How to configure webhook notifications for payment events.\",\n    \"UserManual\": \"DOC-WEBHOOK-001\"\n  }\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', function () { pm.response.to.have.status(200); });"
+            ]}
+          }]
+        },
+        {
+          "name": "POST /reloadconfig — reload all agents",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/reloadconfig", "host": ["{{baseUrl}}"], "path": ["reloadconfig"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Returns Done', function () {",
+              "    pm.expect(pm.response.text()).to.include('Done');",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "POST /reloadconfig — reload specific agent",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/reloadconfig?agentname=userManual",
+              "host": ["{{baseUrl}}"], "path": ["reloadconfig"],
+              "query": [{ "key": "agentname", "value": "userManual" }]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', function () { pm.response.to.have.status(200); });"
+            ]}
+          }]
+        }
+      ]
+    },
+
+    {
+      "name": "📤 DMS — Ingest Document",
+      "description": "POST /ingest_document\n\nReturns {status: 'queued'} immediately. Actual processing runs in a background task — poll GET /document_status to track progress.\n\nFile sources:\n- raw_text: plain text, processed directly\n- file_content: base64-encoded binary, stored in agents.dms_file_content (no S3/GCS needed)\n- storage_url: URL on ALLOWED_STORAGE_ORIGINS allowlist",
+      "item": [
+        {
+          "name": "UserManual — raw_text (happy path)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": { "exec": [
+                "// Generate new UUIDs for each run",
+                "var uuid1 = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {",
+                "    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);",
+                "    return v.toString(16);",
+                "});",
+                "var uuid2 = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {",
+                "    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);",
+                "    return v.toString(16);",
+                "});",
+                "pm.collectionVariables.set('documentId', uuid1);",
+                "pm.collectionVariables.set('versionId', uuid2);"
+              ]}
+            },
+            {
+              "listen": "test",
+              "script": { "exec": [
+                "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                "pm.test('Status is queued', function () {",
+                "    var body = pm.response.json();",
+                "    pm.expect(body.status).to.eql('queued');",
+                "});",
+                "pm.test('document_id echoed back', function () {",
+                "    var body = pm.response.json();",
+                "    pm.expect(body.document_id).to.eql(pm.collectionVariables.get('documentId'));",
+                "});",
+                "pm.test('version_id echoed back', function () {",
+                "    var body = pm.response.json();",
+                "    pm.expect(body.version_id).to.eql(pm.collectionVariables.get('versionId'));",
+                "});"
+              ]}
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/ingest_document", "host": ["{{baseUrl}}"], "path": ["ingest_document"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_id\": \"{{documentId}}\",\n  \"version_id\":  \"{{versionId}}\",\n  \"itenantid\":   {{tenantId}},\n  \"doctype\":     \"UserManual\",\n  \"file_type\":   \"txt\",\n  \"raw_text\":    \"DronaPay user manual: to configure a payment rule go to Rules > Configuration.\",\n  \"sha256_hash\": \"78c5dda5f5d5e5513b15d7a3777f207227892583c73716cedd881fb32862002d\"\n}"
+            }
+          }
+        },
+        {
+          "name": "PolicyDocument — file_content base64 (no storage URL needed)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": { "exec": [
+                "var uuid1 = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {",
+                "    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);",
+                "    return v.toString(16);",
+                "});",
+                "var uuid2 = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {",
+                "    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);",
+                "    return v.toString(16);",
+                "});",
+                "pm.collectionVariables.set('documentId', uuid1);",
+                "pm.collectionVariables.set('versionId', uuid2);"
+              ]}
+            },
+            {
+              "listen": "test",
+              "script": { "exec": [
+                "pm.test('Status 200 — file_content path works without S3', function () {",
+                "    pm.response.to.have.status(200);",
+                "});",
+                "pm.test('Status is queued', function () {",
+                "    pm.expect(pm.response.json().status).to.eql('queued');",
+                "});"
+              ]}
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/ingest_document", "host": ["{{baseUrl}}"], "path": ["ingest_document"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_id\":   \"{{documentId}}\",\n  \"version_id\":    \"{{versionId}}\",\n  \"itenantid\":     {{tenantId}},\n  \"doctype\":       \"PolicyDocument\",\n  \"file_type\":     \"txt\",\n  \"file_content\":  \"RHJvbmFQYXkgcGF5bWVudCBwb2xpY3k6IGFsbCB0cmFuc2FjdGlvbnMgYWJvdmUgNTAwMDAgSU5SIHJlcXVpcmUgc2Vjb25kYXJ5IHJldmlldy4=\",\n  \"sha256_hash\":   \"44f75962a64da92a77081e19122b5188c549ab34d3421c12705da7f287cc1165\"\n}"
+            }
+          }
+        },
+        {
+          "name": "RulesDev — rule definition text",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": { "exec": [
+                "var uuid1 = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {",
+                "    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);",
+                "    return v.toString(16);",
+                "});",
+                "var uuid2 = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {",
+                "    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);",
+                "    return v.toString(16);",
+                "});",
+                "pm.collectionVariables.set('documentId', uuid1);",
+                "pm.collectionVariables.set('versionId', uuid2);"
+              ]}
+            },
+            {
+              "listen": "test",
+              "script": { "exec": [
+                "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                "pm.test('Status is queued', function () {",
+                "    pm.expect(pm.response.json().status).to.eql('queued');",
+                "});"
+              ]}
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/ingest_document", "host": ["{{baseUrl}}"], "path": ["ingest_document"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_id\": \"{{documentId}}\",\n  \"version_id\":  \"{{versionId}}\",\n  \"itenantid\":   {{tenantId}},\n  \"doctype\":     \"RulesDev\",\n  \"file_type\":   \"txt\",\n  \"raw_text\":    \"Create a rule that flags transactions above 50000 INR from unverified merchants in the last 24 hours.\",\n  \"sha256_hash\": \"c68a3cc8a3a1b663bddc9e396a8a8dfe97c4266145c1a454fb0879cc5be2cf48\"\n}"
+            }
+          }
+        },
+        {
+          "name": "ClaimDocument — scanned PDF via file_content",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": { "exec": [
+                "var uuid1 = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {",
+                "    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);",
+                "    return v.toString(16);",
+                "});",
+                "var uuid2 = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {",
+                "    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);",
+                "    return v.toString(16);",
+                "});",
+                "pm.collectionVariables.set('documentId', uuid1);",
+                "pm.collectionVariables.set('versionId', uuid2);"
+              ]}
+            },
+            {
+              "listen": "test",
+              "script": { "exec": [
+                "pm.test('Status 200 — scanned doctype accepted', function () {",
+                "    pm.response.to.have.status(200);",
+                "});",
+                "pm.test('Queued for OCR processing', function () {",
+                "    pm.expect(pm.response.json().status).to.eql('queued');",
+                "});"
+              ]}
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/ingest_document", "host": ["{{baseUrl}}"], "path": ["ingest_document"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_id\":  \"{{documentId}}\",\n  \"version_id\":   \"{{versionId}}\",\n  \"itenantid\":    {{tenantId}},\n  \"doctype\":      \"ClaimDocument\",\n  \"file_type\":    \"pdf\",\n  \"file_content\": \"JVBERi0xLjMgdGVzdCBQREYgY29udGVudA==\",\n  \"sha256_hash\":  \"a8b51aa29a4c7ff5e3a0c7f8a8bedb10e29d1e2b9b63c5cdb3d82c21b4f1e3f8\",\n  \"_note\":        \"Replace file_content with a real base64-encoded PDF and recalculate sha256_hash\"\n}"
+            }
+          }
+        },
+        {
+          "name": "CSVData — base64 CSV file",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": { "exec": [
+                "var uuid1 = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {",
+                "    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);",
+                "    return v.toString(16);",
+                "});",
+                "var uuid2 = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {",
+                "    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);",
+                "    return v.toString(16);",
+                "});",
+                "pm.collectionVariables.set('documentId', uuid1);",
+                "pm.collectionVariables.set('versionId', uuid2);"
+              ]}
+            },
+            {
+              "listen": "test",
+              "script": { "exec": [
+                "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                "pm.test('Status is queued', function () {",
+                "    pm.expect(pm.response.json().status).to.eql('queued');",
+                "});"
+              ]}
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/ingest_document", "host": ["{{baseUrl}}"], "path": ["ingest_document"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_id\":  \"{{documentId}}\",\n  \"version_id\":   \"{{versionId}}\",\n  \"itenantid\":    {{tenantId}},\n  \"doctype\":      \"CSVData\",\n  \"file_type\":    \"csv\",\n  \"file_content\": \"aXRlbmFudGlkLGFjY291bnRpZCxhbW91bnQscmlza19mbGFnCjE3LEFDQzAwMSw1MDAwMCxISUdICjE3LEFDQzAwMiwxMjAwLExPVw==\",\n  \"sha256_hash\":  \"6c46fbe27c6c1a54ed9c45eba1ce1e45d6b651c8f1a9a315e909087066f00da5\"\n}"
+            }
+          }
+        },
+        {
+          "name": "chunking_override — PolicyDocument with custom chunk_size",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": { "exec": [
+                "var uuid1 = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {",
+                "    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);",
+                "    return v.toString(16);",
+                "});",
+                "var uuid2 = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {",
+                "    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);",
+                "    return v.toString(16);",
+                "});",
+                "pm.collectionVariables.set('documentId', uuid1);",
+                "pm.collectionVariables.set('versionId', uuid2);"
+              ]}
+            },
+            {
+              "listen": "test",
+              "script": { "exec": [
+                "pm.test('Status 200 — valid override accepted', function () {",
+                "    pm.response.to.have.status(200);",
+                "});"
+              ]}
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/ingest_document", "host": ["{{baseUrl}}"], "path": ["ingest_document"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_id\":      \"{{documentId}}\",\n  \"version_id\":       \"{{versionId}}\",\n  \"itenantid\":        {{tenantId}},\n  \"doctype\":          \"PolicyDocument\",\n  \"file_type\":        \"txt\",\n  \"raw_text\":         \"DronaPay payment policy: all transactions above 50000 INR require secondary review.\",\n  \"sha256_hash\":      \"44f75962a64da92a77081e19122b5188c549ab34d3421c12705da7f287cc1165\",\n  \"chunking_override\": {\n    \"strategy\":   \"token\",\n    \"chunk_size\": 256,\n    \"overlap\":    25\n  }\n}"
+            }
+          }
+        },
+        {
+          "name": "❌ Error — no file source (400)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/ingest_document", "host": ["{{baseUrl}}"], "path": ["ingest_document"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_id\": \"00000000-0000-4000-a000-000000000001\",\n  \"version_id\":  \"00000000-0000-4000-a000-000000000002\",\n  \"itenantid\":   {{tenantId}},\n  \"doctype\":     \"UserManual\",\n  \"file_type\":   \"txt\",\n  \"sha256_hash\": \"abc123\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Missing source returns 400', function () {",
+              "    pm.response.to.have.status(400);",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "❌ Error — unknown doctype (404)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/ingest_document", "host": ["{{baseUrl}}"], "path": ["ingest_document"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_id\": \"00000000-0000-4000-a000-000000000001\",\n  \"version_id\":  \"00000000-0000-4000-a000-000000000002\",\n  \"itenantid\":   {{tenantId}},\n  \"doctype\":     \"NonExistentType\",\n  \"file_type\":   \"txt\",\n  \"raw_text\":    \"test content\",\n  \"sha256_hash\": \"abc123\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Unknown doctype returns 404', function () {",
+              "    pm.response.to.have.status(404);",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "❌ Error — chunk_size too small (400 SEC-A4)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/ingest_document", "host": ["{{baseUrl}}"], "path": ["ingest_document"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_id\":      \"00000000-0000-4000-a000-000000000001\",\n  \"version_id\":       \"00000000-0000-4000-a000-000000000002\",\n  \"itenantid\":        {{tenantId}},\n  \"doctype\":          \"RulesDev\",\n  \"file_type\":        \"txt\",\n  \"raw_text\":         \"Some rule content\",\n  \"sha256_hash\":      \"abc123\",\n  \"chunking_override\": { \"strategy\": \"token\", \"chunk_size\": 1, \"overlap\": 0 }\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('chunk_size=1 is below minimum — returns 400', function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "pm.test('Error mentions chunk_size', function () {",
+              "    pm.expect(pm.response.json().detail.toLowerCase()).to.include('chunk_size');",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "❌ Error — SSRF untrusted URL (400 SEC-A1)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/ingest_document", "host": ["{{baseUrl}}"], "path": ["ingest_document"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_id\":  \"00000000-0000-4000-a000-000000000001\",\n  \"version_id\":   \"00000000-0000-4000-a000-000000000002\",\n  \"itenantid\":    {{tenantId}},\n  \"doctype\":      \"UserManual\",\n  \"file_type\":    \"pdf\",\n  \"storage_url\":  \"https://attacker.com/malicious.pdf\",\n  \"sha256_hash\":  \"abc123\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Untrusted URL returns 400 (SSRF block)', function () {",
+              "    pm.response.to.have.status(400);",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "❌ Error — AWS metadata SSRF IP (400 AC-4.7)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/ingest_document", "host": ["{{baseUrl}}"], "path": ["ingest_document"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_id\":  \"00000000-0000-4000-a000-000000000001\",\n  \"version_id\":   \"00000000-0000-4000-a000-000000000002\",\n  \"itenantid\":    {{tenantId}},\n  \"doctype\":      \"UserManual\",\n  \"file_type\":    \"txt\",\n  \"storage_url\":  \"http://169.254.169.254/latest/meta-data/\",\n  \"sha256_hash\":  \"abc123\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Metadata IP blocked — returns 400 (AC-4.7)', function () {",
+              "    pm.response.to.have.status(400);",
+              "});"
+            ]}
+          }]
+        }
+      ]
+    },
+
+    {
+      "name": "📊 DMS — Document Status",
+      "description": "GET /document_status/{document_id}\n\nPoll after calling /ingest_document. Expected transitions:\nqueued → extracting → chunking → embedding → pending_approval\n\nUse the documentId set by the ingest tests.",
+      "item": [
+        {
+          "name": "GET status — use documentId from ingest",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/document_status/{{documentId}}",
+              "host": ["{{baseUrl}}"], "path": ["document_status", "{{documentId}}"]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Has all required fields', function () {",
+              "    var body = pm.response.json();",
+              "    pm.expect(body).to.have.property('document_id');",
+              "    pm.expect(body).to.have.property('version_id');",
+              "    pm.expect(body).to.have.property('status');",
+              "});",
+              "pm.test('Status is a valid pipeline stage', function () {",
+              "    var validStatuses = ['queued','extracting','chunking','embedding','pending_approval','failed','ready','active'];",
+              "    pm.expect(validStatuses).to.include(pm.response.json().status);",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "GET status — document not found (404)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/document_status/00000000-0000-0000-0000-000000000000",
+              "host": ["{{baseUrl}}"],
+              "path": ["document_status", "00000000-0000-0000-0000-000000000000"]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Non-existent document returns 404', function () {",
+              "    pm.response.to.have.status(404);",
+              "});"
+            ]}
+          }]
+        }
+      ]
+    },
+
+    {
+      "name": "🔍 DMS — Similarity Check",
+      "description": "POST /check_similarity\n\nCall BEFORE ingest to detect near-duplicate documents. Returns has_near_duplicates, threshold (from doctype config), and matching document list.",
+      "item": [
+        {
+          "name": "UserManual — no duplicates expected",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/check_similarity", "host": ["{{baseUrl}}"], "path": ["check_similarity"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itenantid\":   {{tenantId}},\n  \"category\":    \"UserManual\",\n  \"raw_text\":    \"How do I configure payment rules in DronaPay?\",\n  \"sha256_hash\": \"placeholder-sha256\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Response structure correct', function () {",
+              "    var body = pm.response.json();",
+              "    pm.expect(body).to.have.property('has_near_duplicates');",
+              "    pm.expect(body).to.have.property('threshold');",
+              "    pm.expect(body).to.have.property('matches');",
+              "    pm.expect(body.matches).to.be.an('array');",
+              "});",
+              "pm.test('Threshold is 0.85 (from UserManual doctype config)', function () {",
+              "    pm.expect(pm.response.json().threshold).to.eql(0.85);",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "RulesDev — check before ingesting new rule",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/check_similarity", "host": ["{{baseUrl}}"], "path": ["check_similarity"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itenantid\":   {{tenantId}},\n  \"category\":    \"RulesDev\",\n  \"raw_text\":    \"Create a rule that flags transactions above 50000 INR from unverified merchants in the last 24 hours.\",\n  \"sha256_hash\": \"c68a3cc8a3a1b663bddc9e396a8a8dfe97c4266145c1a454fb0879cc5be2cf48\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Threshold is 0.85 (from RulesDev doctype config)', function () {",
+              "    pm.expect(pm.response.json().threshold).to.eql(0.85);",
+              "});",
+              "pm.test('If matches found, each has required fields', function () {",
+              "    var body = pm.response.json();",
+              "    if (body.matches.length > 0) {",
+              "        body.matches.forEach(function(m) {",
+              "            pm.expect(m).to.have.property('document_id');",
+              "            pm.expect(m).to.have.property('similarity_score');",
+              "            pm.expect(m.similarity_score).to.be.a('number');",
+              "            pm.expect(m.similarity_score).to.be.at.most(1.0);",
+              "            pm.expect(m.similarity_score).to.be.at.least(0.0);",
+              "        });",
+              "    }",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "PolicyDocument — check for near-duplicates",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/check_similarity", "host": ["{{baseUrl}}"], "path": ["check_similarity"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itenantid\":   {{tenantId}},\n  \"category\":    \"PolicyDocument\",\n  \"raw_text\":    \"DronaPay payment policy: all transactions above 50000 INR require secondary review.\",\n  \"sha256_hash\": \"44f75962a64da92a77081e19122b5188c549ab34d3421c12705da7f287cc1165\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('has_near_duplicates is boolean', function () {",
+              "    pm.expect(pm.response.json().has_near_duplicates).to.be.a('boolean');",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "❌ Error — unknown category (404)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/check_similarity", "host": ["{{baseUrl}}"], "path": ["check_similarity"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itenantid\":   {{tenantId}},\n  \"category\":    \"NonExistentDoctype\",\n  \"raw_text\":    \"test\",\n  \"sha256_hash\": \"abc\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Unknown category returns 404', function () {",
+              "    pm.response.to.have.status(404);",
+              "});"
+            ]}
+          }]
+        }
+      ]
+    },
+
+    {
+      "name": "🗄️ DMS — Archive Version",
+      "description": "POST /archive_version\n\nCalled by Spring Boot during Maker-Checker approval to soft-delete vectors.\nSets is_active=false in PGVector. Tenant ownership is validated.",
+      "item": [
+        {
+          "name": "Archive — valid version for tenant 17",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/archive_version", "host": ["{{baseUrl}}"], "path": ["archive_version"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version_id\": \"{{versionId}}\",\n  \"itenantid\":  {{tenantId}}\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "if (pm.response.code === 200) {",
+              "    pm.test('Status 200 — version archived', function () {",
+              "        pm.response.to.have.status(200);",
+              "    });",
+              "    pm.test('Status is archived', function () {",
+              "        pm.expect(pm.response.json().status).to.eql('archived');",
+              "    });",
+              "    pm.test('version_id echoed back', function () {",
+              "        pm.expect(pm.response.json().version_id).to.eql(pm.collectionVariables.get('versionId'));",
+              "    });",
+              "} else if (pm.response.code === 404) {",
+              "    pm.test('Version not yet in DB — run ingest tests first', function () {",
+              "        pm.expect(true).to.be.true; // informational only",
+              "    });",
+              "}"
+            ]}
+          }]
+        },
+        {
+          "name": "❌ Error — wrong tenant (403)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/archive_version", "host": ["{{baseUrl}}"], "path": ["archive_version"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version_id\": \"{{versionId}}\",\n  \"itenantid\":  9999\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Wrong tenant returns 403 or 404', function () {",
+              "    pm.expect([403, 404]).to.include(pm.response.code);",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "❌ Error — version not found (404)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/archive_version", "host": ["{{baseUrl}}"], "path": ["archive_version"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version_id\": \"00000000-0000-0000-0000-000000000000\",\n  \"itenantid\":  {{tenantId}}\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Non-existent version returns 404', function () {",
+              "    pm.response.to.have.status(404);",
+              "});"
+            ]}
+          }]
+        }
+      ]
+    },
+
+    {
+      "name": "🔒 Security",
+      "description": "SEC-A1: SSRF allowlist\nSEC-A4: chunk size bounds\nSEC-A6: internal tenant delete\n\nNote: SEC-A2 (injection flag) and SEC-A3 (chunk count guard) are verified via document status polling after ingest.",
+      "item": [
+        {
+          "name": "SEC-A6 — DELETE tenant vectors (no secret → 403)",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/internal/tenant_vectors/{{tenantId}}",
+              "host": ["{{baseUrl}}"], "path": ["internal", "tenant_vectors", "{{tenantId}}"]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('No secret header returns 403', function () {",
+              "    pm.response.to.have.status(403);",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "SEC-A6 — DELETE tenant vectors (wrong secret → 403)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "X-Internal-Secret", "value": "wrong-secret-value" }],
+            "url": {
+              "raw": "{{baseUrl}}/internal/tenant_vectors/{{tenantId}}",
+              "host": ["{{baseUrl}}"], "path": ["internal", "tenant_vectors", "{{tenantId}}"]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Wrong secret returns 403', function () {",
+              "    pm.response.to.have.status(403);",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "SEC-A6 — DELETE tenant vectors (correct secret)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "X-Internal-Secret", "value": "{{internalSecret}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/internal/tenant_vectors/{{tenantId}}",
+              "host": ["{{baseUrl}}"], "path": ["internal", "tenant_vectors", "{{tenantId}}"]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 with valid secret', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Response contains total_deleted and by_collection', function () {",
+              "    var body = pm.response.json();",
+              "    pm.expect(body).to.have.property('total_deleted');",
+              "    pm.expect(body).to.have.property('by_collection');",
+              "    pm.expect(body.itenantid).to.eql(parseInt(pm.collectionVariables.get('tenantId')));",
+              "});"
+            ]}
+          }]
+        }
+      ]
+    }
+
+  ]
+}
