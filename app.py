@@ -398,7 +398,7 @@ def update_version_status(version_id: str, status: str,
         if extra.get('chunk_count') is not None:
             set_parts.append('chunk_count = :chunk_count')
             params['chunk_count'] = extra['chunk_count']
-    sql = f"UPDATE agents.dms_document_versions SET {', '.join(set_parts)} WHERE id = :vid::uuid"
+    sql = f"UPDATE agents.dms_document_versions SET {', '.join(set_parts)} WHERE id = :vid"
     try:
         with Session(globals.engine) as session:
             session.execute(sa_text(sql), params)
@@ -415,7 +415,7 @@ def get_version_metadata(version_id: str) -> dict:
                    allowed_roles, allowed_agents, org_unit_id, entity_tags,
                    document_date, version_status
             FROM agents.dms_document_versions
-            WHERE id = :vid::uuid
+            WHERE id = :vid
         """), {'vid': version_id}).fetchone()
         return dict(row._mapping) if row else {}
 
@@ -425,7 +425,7 @@ def get_document_metadata(document_id: str) -> dict:
     with Session(globals.engine) as session:
         row = session.execute(sa_text("""
             SELECT id, itenantid, category_id, document_name, scope, created_by
-            FROM agents.dms_documents WHERE id = :did::uuid
+            FROM agents.dms_documents WHERE id = :did
         """), {'did': document_id}).fetchone()
         return dict(row._mapping) if row else {}
 
@@ -448,7 +448,7 @@ def get_version_status_from_db(document_id: str) -> Optional[dict]:
         row = session.execute(sa_text("""
             SELECT id AS version_id, version_status, error_message, chunk_count
             FROM agents.dms_document_versions
-            WHERE document_id = :did::uuid
+            WHERE document_id = :did
             ORDER BY created_at DESC LIMIT 1
         """), {'did': document_id}).fetchone()
         return dict(row._mapping) if row else None
@@ -463,7 +463,7 @@ def insert_chunks_to_db(version_id: str, chunks: list, chunking_config: dict):
             session.execute(sa_text("""
                 INSERT INTO agents.dms_chunks
                     (version_id, chunk_index, page_number, chunk_text, chunk_strategy)
-                VALUES (:vid::uuid, :idx, :pnum, :txt, :strat)
+                VALUES (:vid, :idx, :pnum, :txt, :strat)
             """), {
                 'vid': version_id, 'idx': i,
                 'pnum': page_number, 'txt': chunk_text, 'strat': strategy,
@@ -498,7 +498,7 @@ def create_child_document_records(parent_document_id: str, document_id: str,
     with Session(globals.engine) as session:
         parent_row = session.execute(sa_text("""
             SELECT category_id, scope, created_by FROM agents.dms_documents
-            WHERE id = :pid::uuid
+            WHERE id = :pid
         """), {'pid': parent_document_id}).fetchone()
         category_id = str(parent_row[0]) if parent_row and parent_row[0] else None
         scope       = parent_row[1] if parent_row else 'tenant'
@@ -507,7 +507,7 @@ def create_child_document_records(parent_document_id: str, document_id: str,
         session.execute(sa_text("""
             INSERT INTO agents.dms_documents
                 (id, itenantid, category_id, document_name, scope, created_by)
-            VALUES (:id::uuid, :t, :cat::uuid, :name, :scope, :cb)
+            VALUES (:id, :t, :cat, :name, :scope, :cb)
         """), {
             'id': document_id, 't': itenantid, 'cat': category_id,
             'name': document_name, 'scope': scope, 'cb': created_by,
@@ -517,7 +517,7 @@ def create_child_document_records(parent_document_id: str, document_id: str,
                 (id, document_id, version_number, sha256_hash, classification,
                  version_status, is_active, storage_url, created_by)
             VALUES
-                (:id::uuid, :did::uuid, 1, :h, :cls, 'draft', false, :url, :cb)
+                (:id, :did, 1, :h, :cls, 'draft', false, :url, :cb)
         """), {
             'id': version_id, 'did': document_id, 'h': sha256_hash,
             'cls': classification, 'url': storage_url, 'cb': created_by,
@@ -537,7 +537,7 @@ def store_file_to_db(version_id: str, file_bytes: bytes, file_extension: str) ->
         row = session.execute(sa_text("""
             INSERT INTO agents.dms_file_content
                 (version_id, content, file_extension, checksum)
-            VALUES (:vid::uuid, :content, :ext, :checksum)
+            VALUES (:vid, :content, :ext, :checksum)
             RETURNING id::text
         """), {
             'vid':      version_id,
@@ -554,7 +554,7 @@ def fetch_file_from_db(version_id: str) -> Optional[bytes]:
     with Session(globals.engine) as session:
         row = session.execute(sa_text("""
             SELECT content FROM agents.dms_file_content
-            WHERE version_id = :vid::uuid
+            WHERE version_id = :vid
             ORDER BY created_at DESC LIMIT 1
         """), {'vid': version_id}).fetchone()
         return bytes(row[0]) if row else None

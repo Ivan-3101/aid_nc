@@ -1,4 +1,5 @@
 import json
+import re
 import globals
 from sqlalchemy import create_engine,text,bindparam
 from sqlalchemy.orm import  Session
@@ -15,21 +16,51 @@ def memdata(observed:dict,store:dict):
         return  None #jsonLogic(jsonquery, globals.refdata[store['object']], operations=DRONA)
 
 def execute_query_with_params(session, query, param_dict):
+    """
+    Executes a parameterised SQL query built from an agent config.
+
+    Handles three cases:
+      - Scalar params  : plain :name binding
+      - List params    : expanding=True for IN (:name) clauses
+      - Unmapped params: any :token in the query not present in param_dict is
+                         bound to NULL and a warning is logged.  This prevents
+                         SQLAlchemy from raising "A value is required for bind
+                         parameter X" when a query has been updated with a new
+                         filter but the agent config params array was not.
+    """
     processed_query = query
     bind_params = []
+    final_params = {}
 
     for key, value in param_dict.items():
         bind_param_key = key.replace('.', '_')
         processed_query = processed_query.replace(f':{key}', f':{bind_param_key}')
+        final_params[bind_param_key] = value
 
-        # If the value is a list/tuple, use expanding=True
         if isinstance(value, (list, tuple)):
             bind_params.append(bindparam(bind_param_key, expanding=True))
         else:
             bind_params.append(bindparam(bind_param_key))
 
-    stmt = text(processed_query).bindparams(*bind_params)
-    result = session.execute(stmt, {key.replace('.', '_'): value for key, value in param_dict.items()})
+    # ── Detect any :param tokens in the query that param_dict did not cover ──
+    # Excludes PostgreSQL cast syntax (::type) by requiring a word boundary
+    # after the colon-identifier pair.
+    declared   = set(final_params.keys())
+    in_query   = set(re.findall(r'(?<!:):([a-zA-Z_][a-zA-Z0-9_]*)(?!:)',
+                                processed_query))
+    undeclared = in_query - declared
+    for param in undeclared:
+        globals.logger.warning(
+            "execute_query_with_params: query references ':%s' but the agent "
+            "config params array has no mapping for it — binding NULL. "
+            "Add a params entry with valueField pointing to the correct data path.",
+            param
+        )
+        bind_params.append(bindparam(param))
+        final_params[param] = None
+
+    stmt   = text(processed_query).bindparams(*bind_params)
+    result = session.execute(stmt, final_params)
     return result
 
 def execute_query(session, query, param_dict):

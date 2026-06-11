@@ -383,6 +383,11 @@ Always run in this sequence on a fresh database:
 11. DMS-008-cutover.sql             ← uncomment DROP statements after 48h sign-off
 ```
 
+**Hotfixes** (apply if you see the errors described in the Troubleshooting section):
+```
+FIX-missing-itenantid-postrequisite-params.sql
+```
+
 ---
 
 ## Production / CI build (no Compose)
@@ -401,6 +406,98 @@ docker run -d \
 Secrets are read as individual files from `/app/secrets/`. Required files match the env variable names: `restuser`, `restpwd`, `OPENAI_API_KEY`, `DBUSER`, `DBPWD`, `txndb1`, `agent`.
 
 For production the `CMD` in the Dockerfile is used (`uvicorn` without `--reload`). The `entrypoint.sh` hot-reload mode is only active when Compose invokes it via the `entrypoint:` override.
+
+---
+
+## Troubleshooting
+
+### Error: `syntax error at or near ":"` (psycopg / SQLAlchemy)
+
+**Symptom** — `POST /archive_version`, `GET /document_status`, or any DB helper returns 500 with:
+```
+psycopg.errors.SyntaxError: syntax error at or near ":"
+LINE N: WHERE id = :vid::uuid
+```
+
+**Cause** — `psycopg` (v3) tokenises named parameters as `:identifier`. When it sees `:vid::uuid`, it reads the token up to the second colon and treats `vid:uuid` as the parameter name, which doesn't match any key in the params dict.
+
+**Fix** — Already applied in `app.py`. All `WHERE id = :param::uuid` patterns were replaced with `WHERE id = :param`. PostgreSQL applies an implicit `text → uuid` cast automatically when comparing a string against a UUID column — the explicit cast was redundant and broke the driver.
+
+---
+
+### Error: `A value is required for bind parameter 'itenantid'`
+
+**Symptom** — `POST /agent` for `rulesDev`, `userManual`, `sqlagentv1` returns 500 with:
+```
+sqlalchemy.exc.InvalidRequestError: A value is required for bind parameter 'itenantid'
+```
+in `get_requisites → dbdata → execute_query_with_params`.
+
+**Cause** — The `similar_cases` (and similar) postrequisite SQL queries stored in `masters.sysconfig` include `AND d.itenantid = :itenantid` for tenant isolation, but the `params` array in the agent config only declares the `docid` mapping. SQLAlchemy sees `:itenantid` in the statement with no bound value and crashes.
+
+**How the query gets this parameter**
+
+When the agent pipeline runs postrequisites, `agent_data` is the **similarities list** returned by PGVector — e.g.:
+```json
+[
+  { "docid": "abc-123", "RuleID": "R001", "itenantid": 17 },
+  { "docid": "def-456", "RuleID": "R002", "itenantid": 17 }
+]
+```
+The `params` array tells the app how to extract values from this list:
+- `"valueField": "*.docid"` → extracts `["abc-123", "def-456"]` (wildcard over all items)
+- `"valueField": "0.itenantid"` → extracts `17` (field `itenantid` from item at index 0)
+
+**Fix — Step 1: apply the hotfix SQL**
+
+```bash
+psql -h <host> -U <user> -d <db> \
+  -f sql-scripts/migrations/FIX-missing-itenantid-postrequisite-params.sql
+```
+
+This adds `{ "name": "itenantid", "valueField": "0.itenantid" }` to the `params` array of the `similar_cases` postrequisite for `rulesDev`, `userManual`, `userManualPM`, and `sqlagentv1`. The script is **idempotent** — safe to run multiple times; it checks if the param already exists before adding it.
+
+**Before the fix** — params array for `rulesDev.similar_cases`:
+```json
+"params": [
+  { "name": "docid", "type": "list", "valueField": "*.docid" }
+]
+```
+
+**After the fix**:
+```json
+"params": [
+  { "name": "docid", "type": "list", "valueField": "*.docid" },
+  { "name": "itenantid", "valueField": "0.itenantid" }
+]
+```
+
+**Fix — Step 2: reload config**
+```bash
+curl -s -u <user>:<pwd> -X POST http://localhost:8000/reloadconfig
+```
+The app re-reads from `masters.sysconfig` — no restart needed.
+
+**Fix — Step 3: verify**
+```sql
+SELECT config->'postrequisites'->0->'params' AS params
+FROM masters.sysconfig
+WHERE cfgname = 'agents'
+  AND config @> '[{"agent": "rulesDev"}]';
+```
+Expected output includes both `docid` and `itenantid` entries.
+
+**Defensive code fix** — `execute_query_with_params` in `utils.py` was also updated to scan the SQL for any `:param` tokens not covered by the agent config's `params` array. For any undeclared token it now binds `NULL` and logs a `WARNING` instead of raising a 500. This means a misconfigured agent degrades gracefully rather than crashing, and the log message tells you exactly which param to fix:
+```
+WARNING: execute_query_with_params: query references ':itenantid' but the
+agent config params array has no mapping for it — binding NULL. Add a params
+entry with valueField pointing to the correct data path.
+```
+
+**If you add a new postrequisite query that filters on `itenantid`**, always add the mapping to the params array:
+```json
+{ "name": "itenantid", "valueField": "0.itenantid" }
+```
 
 ---
 

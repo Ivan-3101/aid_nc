@@ -13,9 +13,11 @@ ENV TZ=Asia/Calcutta
 
 
 COPY *.py /app/
-COPY entrypoint.sh /app/entrypoint.sh
+# COPY entrypoint.sh /app/entrypoint.sh
 
-RUN mkdir -p /app/logs /app/secrets && chmod +x /app/entrypoint.sh
+# RUN mkdir -p /app/logs /app/secrets && chmod +x /app/entrypoint.sh
+RUN mkdir -p /app/logs /app/secrets
+
 
 # Download embedding model at build time so the image runs fully offline.
 # Pass --build-arg HF_TOKEN=hf_... to avoid rate limits during build.
