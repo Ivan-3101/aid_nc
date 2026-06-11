@@ -20,7 +20,7 @@ BEGIN
             SELECT id FROM langchain_pg_embedding
             WHERE cmetadata->>'is_active' IS NULL
               AND collection_id IN (
-                  SELECT uuid FROM langchain_pg_collections
+                  SELECT uuid FROM agents.langchain_pg_collection
                   WHERE name IN (
                       'caseagentv1', 'userManual', 'rulesDev',
                       'sqlagentv1', 'uinavigatorv1'

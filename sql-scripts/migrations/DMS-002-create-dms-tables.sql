@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS agents.dms_document_versions (
     checker_notes           TEXT,
     approved_at             TIMESTAMP,
     ingested_at             TIMESTAMP,
+    created_at              TIMESTAMP       DEFAULT NOW(),  -- set on row creation, never changes
     UNIQUE (document_id, version_number)
 );
 

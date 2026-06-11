@@ -443,7 +443,12 @@ def check_sha256_duplicate(document_id: str, sha256_hash: str, itenantid: int) -
 
 
 def get_version_status_from_db(document_id: str) -> Optional[dict]:
-    """Returns latest version status row for a document UUID (DMS-006 columns required)."""
+    """
+    Returns the most recently created version row for a document UUID.
+    Orders by created_at (set at row creation, always populated) rather than
+    ingested_at (set only at pipeline completion — NULL for in-progress versions).
+    Requires FIX-dms-document-versions-add-created-at.sql to have been run.
+    """
     with Session(globals.engine) as session:
         row = session.execute(sa_text("""
             SELECT id AS version_id, version_status, error_message, chunk_count
@@ -599,7 +604,7 @@ def run_agent_internal(agentid: str, data: dict) -> dict:
             agent_data['similarities'])
     response = get_chain_result(agentid, agent_config, agent_data)
     if agent_config.get('response_type', 'json') == 'json':
-        return json.loads(response.content)
+        return safe_json_loads(response.content)
     return {'content': str(response)}
 
 
@@ -1024,6 +1029,67 @@ initialize_vector_stores()
 
 
 # Define prompt template and retrieve from config
+def safe_json_loads(text: str) -> dict:
+    """
+    Parses an LLM response string as JSON, handling the two most common
+    LLM formatting failures:
+
+    1. Markdown code fences  — LLM wraps the JSON in ```json ... ```
+    2. Raw control characters inside string values — LLM emits a literal
+       newline (0x0a) or carriage-return (0x0d) inside a JSON string instead
+       of the valid escape sequences \\n / \\r.  This is the failure mode
+       that produces:
+           json.JSONDecodeError: Invalid control character at: line 1 col N
+
+    What this does NOT do:
+    - It does not touch valid \\n / \\r escape sequences already in the text.
+    - It does not strip whitespace from top-level JSON structure.
+    - Legitimate multi-line string values (remarks, descriptions) are
+      unaffected: if the LLM already escaped them correctly they parse fine;
+      if the LLM emitted raw newlines they are fixed transparently.
+    """
+    text = text.strip()
+
+    # Strip markdown code fence (```json ... ``` or ``` ... ```)
+    if text.startswith('```'):
+        text = re.sub(r'^```(?:json)?\s*\n?', '', text)
+        text = re.sub(r'\n?```\s*$', '',      text)
+        text = text.strip()
+
+    # Fast path — valid JSON
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as first_err:
+        pass
+
+    # Slow path — escape raw control characters that appear inside string
+    # values.  We only replace chars 0x00-0x1f that are NOT already part of
+    # a valid JSON escape (i.e. not preceded by a backslash).
+    # 0x09 = \t, 0x0a = \n, 0x0d = \r are the most common LLM offenders.
+    _CTRL_RE = re.compile(r'(?<!\\)([\x00-\x08\x0b\x0c\x0e-\x1f\x7f])')
+    _NL_RE   = re.compile(r'(?<!\\)([\x0a\x0d])')
+
+    fixed = _CTRL_RE.sub(lambda m: repr(m.group())[1:-1], text)
+    fixed = _NL_RE.sub( lambda m: '\\n' if m.group() == '\n' else '\\r', fixed)
+
+    try:
+        result = json.loads(fixed)
+        logger.warning(
+            "safe_json_loads: fixed raw control characters in LLM response "
+            "(original error: %s). Consider updating the agent prompt to "
+            "enforce single-line JSON output.", first_err
+        )
+        return result
+    except json.JSONDecodeError as second_err:
+        logger.error(
+            "safe_json_loads: could not parse LLM response even after "
+            "sanitisation.\nOriginal error : %s\nSanitised error: %s\n"
+            "Raw response (first 500 chars): %.500r",
+            first_err, second_err, text
+        )
+        raise
+
+
 def get_prompt_template(config):
     prompt_config = config.get("prompt_template", {})
     return PromptTemplate(
@@ -1209,7 +1275,7 @@ async def agent_ai(request: DynamicRequest,username: str = Depends(get_current_u
     response=get_chain_result(agentid,agent_config,agent_data)
     logger.debug(response)
     if agent_config.get('response_type','json')=='json':
-        json_response=json.loads(response.content)
+        json_response=safe_json_loads(response.content)
     else: json_response =response    
     return json_response    
 
@@ -1342,7 +1408,7 @@ async def recommend_action(request: DynamicRequest,username: str = Depends(get_c
     }
     # Combine into a single query for the LLM
     response = chain.invoke(inputs)
-    json_response=json.loads(response)
+    json_response=safe_json_loads(response)
     return json_response
 
 # ─── DMS-003 endpoints ────────────────────────────────────────────────────────
@@ -1512,7 +1578,7 @@ async def delete_tenant_vectors(
             result = session.execute(sa_text("""
                 DELETE FROM langchain_pg_embedding
                 WHERE collection_id = (
-                    SELECT uuid FROM langchain_pg_collections
+                    SELECT uuid FROM agents.langchain_pg_collection
                     WHERE name = :col
                 )
                 AND cmetadata->>'itenantid' = :tid

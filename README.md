@@ -385,7 +385,8 @@ Always run in this sequence on a fresh database:
 
 **Hotfixes** (apply if you see the errors described in the Troubleshooting section):
 ```
-FIX-missing-itenantid-postrequisite-params.sql
+FIX-dms-document-versions-add-created-at.sql      ← missing created_at column
+FIX-missing-itenantid-postrequisite-params.sql     ← missing itenantid param in postrequisites
 ```
 
 ---
@@ -422,6 +423,33 @@ LINE N: WHERE id = :vid::uuid
 **Cause** — `psycopg` (v3) tokenises named parameters as `:identifier`. When it sees `:vid::uuid`, it reads the token up to the second colon and treats `vid:uuid` as the parameter name, which doesn't match any key in the params dict.
 
 **Fix** — Already applied in `app.py`. All `WHERE id = :param::uuid` patterns were replaced with `WHERE id = :param`. PostgreSQL applies an implicit `text → uuid` cast automatically when comparing a string against a UUID column — the explicit cast was redundant and broke the driver.
+
+---
+
+### Error: `column "created_at" does not exist` on `dms_document_versions`
+
+**Symptom** — `GET /document_status/{document_id}` returns 500:
+```
+psycopg.errors.UndefinedColumn: column "created_at" does not exist
+LINE N: ORDER BY created_at DESC LIMIT 1
+```
+
+**Cause** — `agents.dms_document_versions` was created by `DMS-002-create-dms-tables.sql` without a `created_at` column. The `get_version_status_from_db` query orders by `created_at` to find the most recently created version row.
+
+**Why not `ingested_at`?** — `ingested_at` is only populated at step 11 of the ingest pipeline (pipeline completion). Versions in `queued`, `extracting`, `chunking`, `embedding`, or `failed` state all have `ingested_at = NULL`. Ordering by `ingested_at DESC` would put those in-progress rows last, so the status endpoint would return an old completed version instead of the one currently being processed.
+
+**Fix** — run the hotfix migration:
+```bash
+psql -h <host> -U <user> -d <db> \
+  -f sql-scripts/migrations/FIX-dms-document-versions-add-created-at.sql
+```
+
+The migration:
+1. Adds `created_at TIMESTAMP DEFAULT NOW()` to `dms_document_versions` (and the audit table) using `ADD COLUMN IF NOT EXISTS` — safe to re-run
+2. Back-fills existing rows using `COALESCE(ingested_at, approved_at, NOW())`
+3. Prints a row count confirming zero NULL values remain
+
+No app restart is needed.
 
 ---
 

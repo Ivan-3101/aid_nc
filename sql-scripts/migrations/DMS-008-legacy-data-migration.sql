@@ -21,7 +21,7 @@ INSERT INTO agents.dms_categories (itenantid, name, color)
 SELECT DISTINCT CAST(cmetadata->>'itenantid' AS INTEGER), 'Migrated', '#CCCCCC'
 FROM langchain_pg_embedding
 WHERE collection_id IN (
-    SELECT uuid FROM langchain_pg_collections
+    SELECT uuid FROM agents.langchain_pg_collection
     WHERE name IN ('userManual','caseagentv1','rulesDev','sqlagentv1','uinavigatorv1')
 )
 AND cmetadata->>'itenantid' IS NOT NULL
