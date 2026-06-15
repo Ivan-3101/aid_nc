@@ -1057,10 +1057,11 @@ def safe_json_loads(text: str) -> dict:
         text = text.strip()
 
     # Fast path — valid JSON
+    _first_err = None
     try:
         return json.loads(text)
     except json.JSONDecodeError as first_err:
-        pass
+        _first_err = first_err   # capture before Python 3 deletes the except-scope var
 
     # Slow path — escape raw control characters that appear inside string
     # values.  We only replace chars 0x00-0x1f that are NOT already part of
@@ -1077,7 +1078,7 @@ def safe_json_loads(text: str) -> dict:
         logger.warning(
             "safe_json_loads: fixed raw control characters in LLM response "
             "(original error: %s). Consider updating the agent prompt to "
-            "enforce single-line JSON output.", first_err
+            "enforce single-line JSON output.", _first_err
         )
         return result
     except json.JSONDecodeError as second_err:
@@ -1085,7 +1086,7 @@ def safe_json_loads(text: str) -> dict:
             "safe_json_loads: could not parse LLM response even after "
             "sanitisation.\nOriginal error : %s\nSanitised error: %s\n"
             "Raw response (first 500 chars): %.500r",
-            first_err, second_err, text
+            _first_err, second_err, text
         )
         raise
 
