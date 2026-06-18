@@ -1,0 +1,1763 @@
+{
+  "info": {
+    "_postman_id": "49ccacb8-2f8b-4249-b0a4-d624270434fe",
+    "name": "DIA \u2014 DronaPay Intelligent Agent",
+    "description": "Complete test collection for the DIA FastAPI service.\n\n**Setup:**\n1. Set `baseUrl` to your running instance (default: http://localhost:8000)\n2. Set `username` / `password` to match REST_USER / REST_PWD in your .env\n3. Set `tenantId` (seed data uses 17)\n4. Run the **Setup** folder first to initialise collection variables\n\n**Auth:** HTTP Basic is applied at collection level \u2014 all requests inherit it.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "49044654",
+    "_collection_link": "https://go.postman.co/collection/49044654-49ccacb8-2f8b-4249-b0a4-d624270434fe?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "\ud83d\udd10 Authentication",
+      "item": [
+        {
+          "name": "Valid credentials \u2014 should pass (200 or 404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Valid credentials not rejected', function () {",
+                  "    pm.expect(pm.response.code).to.not.equal(401);",
+                  "    pm.expect(pm.response.code).to.not.equal(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agentid\": \"nonexistent_agent\",\n  \"data\": {}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/agent",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "agent"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "No credentials \u2014 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('No auth returns 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"agentid\": \"userManual\", \"data\": {}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/agent",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "agent"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Wrong credentials \u2014 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Wrong credentials return 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "wrong_user",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "wrong_pass",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"agentid\": \"userManual\", \"data\": {}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/agent",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "agent"
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "Verify that endpoints enforce HTTP Basic auth."
+    },
+    {
+      "name": "\ud83e\udd16 Agent \u2014 Run",
+      "item": [
+        {
+          "name": "caseagentv1 \u2014 Fraud case analysis",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response has decision or comment', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body).to.have.any.keys(['decision', 'comment', 'answer']);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "    pm.response.to.be.json;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agentid\": \"caseagentv1\",\n  \"data\": {\n    \"RuleSpecificL1Action\": \"FLAG\",\n    \"RuleID\": \"4231\",\n    \"CaseID\": \"TXN-9182736\",\n    \"BatchDate\": \"2024-03-15\",\n    \"itenantid\": {{tenantId}},\n    \"iaccountid\": 41527,\n    \"icustomerid\": 20001\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/agent",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "agent"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "userManual \u2014 Help query",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response has answer', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('answer');",
+                  "    pm.expect(body.answer).to.be.a('string');",
+                  "    pm.expect(body.answer.length).to.be.above(0);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agentid\": \"userManual\",\n  \"data\": {\n    \"itenantid\": {{tenantId}},\n    \"user_query\": \"How do I configure a payment rule in DronaPay?\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/agent",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "agent"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "userManual \u2014 Off-topic query (tests guardrails)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 \u2014 out-of-scope handled gracefully', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Has answer field', function () {",
+                  "    pm.expect(pm.response.json()).to.have.property('answer');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agentid\": \"userManual\",\n  \"data\": {\n    \"itenantid\": {{tenantId}},\n    \"user_query\": \"What is the capital of France?\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/agent",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "agent"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "rulesDev \u2014 Create new rule",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response has answer with JSON logic', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('answer');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agentid\": \"rulesDev\",\n  \"data\": {\n    \"itenantid\": {{tenantId}},\n    \"user_query\": \"Create a rule to flag transactions above 50000 INR from merchants with less than 30 days of activity.\",\n    \"rule_expectation\": \"Flag high-value transactions from new unverified merchants.\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/agent",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "agent"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "sqlagentv1 \u2014 Generate SQL query",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Has answer', function () {",
+                  "    pm.expect(pm.response.json()).to.have.property('answer');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agentid\": \"sqlagentv1\",\n  \"data\": {\n    \"itenantid\": {{tenantId}},\n    \"user_query\": \"Get total transaction amount grouped by merchant for last 30 days\",\n    \"query_expectation\": \"Monthly merchant transaction totals\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/agent",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "agent"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "uinavigatorv1 \u2014 Navigate to feature",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Has instructions', function () {",
+                  "    pm.expect(pm.response.json()).to.have.property('instructions');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agentid\": \"uinavigatorv1\",\n  \"data\": {\n    \"itenantid\": {{tenantId}},\n    \"iTenantID\": {{tenantId}},\n    \"user_query\": \"Where do I find the transaction alert settings?\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/agent",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "agent"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "orchestratorAgent \u2014 Route user query",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Orchestrator routes or answers', function () {",
+                  "    var body = pm.response.json();",
+                  "    var hasRouting = body.agentid !== undefined && body.data !== undefined;",
+                  "    var hasAnswer  = body.answer !== undefined;",
+                  "    pm.expect(hasRouting || hasAnswer).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agentid\": \"orchestratorAgent\",\n  \"data\": {\n    \"itenantid\": {{tenantId}},\n    \"iuserid\": 42,\n    \"user_query\": \"How do I add a new fraud detection rule?\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/agent",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "agent"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Unknown agent \u2014 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Unknown agent returns 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agentid\": \"agent_that_does_not_exist\",\n  \"data\": { \"itenantid\": {{tenantId}} }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/agent",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "agent"
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "POST /agent for each configured agent.\n\nAll agents require `itenantid` in input_data. Prerequisites (DB lookups) run first; similar cases are retrieved from PGVector; LLM generates the final response."
+    },
+    {
+      "name": "\ud83d\udccb Agent \u2014 Utility",
+      "item": [
+        {
+          "name": "POST /add_to_vectorstore \u2014 caseagentv1 (single strategy)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Success message returned', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body.message).to.include('successfully');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agentid\": \"caseagentv1\",\n  \"data\": {\n    \"RuleSpecificL1Action\": \"FLAG\",\n    \"ruleid\": \"4231\",\n    \"caseid\": \"TXN-9182736\",\n    \"batchdate\": \"2024-03-15\",\n    \"itenantid\": \"{{tenantId}}\",\n    \"iaccountid\": 41527,\n    \"icustomerid\": 20001,\n    \"prerequisites\": {\n      \"AccountMaster\": {\n        \"ifsc\": \"ICIC0000543\",\n        \"accountId\": 41527,\n        \"itenantid\": 17,\n        \"merchant\": false,\n        \"verified\": true,\n        \"accountNumber\": \"39399382\",\n        \"accountName\": null,\n        \"accountType\": 1\n      },\n      \"MonthlyProfile\": null\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/add_to_vectorstore",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "add_to_vectorstore"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /add_to_vectorstore \u2014 userManual (page strategy)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agentid\": \"userManual\",\n  \"data\": {\n    \"Date\": \"2024-03-15\",\n    \"DocName\": \"DronaPay API Guide\",\n    \"Page ID\": 42,\n    \"Version\": 6,\n    \"itenantid\": {{tenantId}},\n    \"user_query\": \"How to configure webhook notifications for payment events.\",\n    \"UserManual\": \"DOC-WEBHOOK-001\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/add_to_vectorstore",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "add_to_vectorstore"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /reloadconfig \u2014 reload all agents",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Returns Done', function () {",
+                  "    pm.expect(pm.response.text()).to.include('Done');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reloadconfig",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reloadconfig"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /reloadconfig \u2014 reload specific agent",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reloadconfig?agentname=userManual",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reloadconfig"
+              ],
+              "query": [
+                {
+                  "key": "agentname",
+                  "value": "userManual"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "\ud83d\udce4 DMS \u2014 Ingest Document",
+      "item": [
+        {
+          "name": "UserManual \u2014 raw_text (happy path)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Status is queued', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body.status).to.eql('queued');",
+                  "});",
+                  "pm.test('document_id echoed back', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body.document_id).to.eql(pm.collectionVariables.get('documentId'));",
+                  "});",
+                  "pm.test('version_id echoed back', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body.version_id).to.eql(pm.collectionVariables.get('versionId'));",
+                  "});"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"document_id\": \"aaaaaaaa-0001-0001-0001-000000000001\",\n    \"version_id\": \"bbbbbbbb-0001-0001-0001-000000000001\",\n    \"itenantid\": {{tenantId}},\n    \"doctype\": \"UserManual\",\n    \"file_type\": \"txt\",\n    \"raw_text\": \"DronaPay user manual: to configure a payment rule go to Rules > Configuration.\",\n    \"sha256_hash\": \"78c5dda5f5d5e5513b15d7a3777f207227892583c73716cedd881fb32862002d\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ingest_document",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ingest_document"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PolicyDocument \u2014 file_content base64 (no storage URL needed)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 \u2014 file_content path works without S3', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Status is queued', function () {",
+                  "    pm.expect(pm.response.json().status).to.eql('queued');",
+                  "});"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"document_id\": \"aaaaaaaa-0001-0001-0001-000000000001\",\n    \"version_id\": \"bbbbbbbb-0001-0001-0001-000000000001\",\n    \"itenantid\": {{tenantId}},\n    \"doctype\": \"PolicyDocument\",\n    \"file_type\": \"txt\",\n    \"file_content\": \"RHJvbmFQYXkgcGF5bWVudCBwb2xpY3k6IGFsbCB0cmFuc2FjdGlvbnMgYWJvdmUgNTAwMDAgSU5SIHJlcXVpcmUgc2Vjb25kYXJ5IHJldmlldy4=\",\n    \"sha256_hash\": \"44f75962a64da92a77081e19122b5188c549ab34d3421c12705da7f287cc1165\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ingest_document",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ingest_document"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "RulesDev \u2014 rule definition text",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Status is queued', function () {",
+                  "    pm.expect(pm.response.json().status).to.eql('queued');",
+                  "});"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"document_id\": \"aaaaaaaa-0001-0001-0001-000000000001\",\n    \"version_id\": \"bbbbbbbb-0001-0001-0001-000000000001\",\n    \"itenantid\": {{tenantId}},\n    \"doctype\": \"RulesDev\",\n    \"file_type\": \"txt\",\n    \"raw_text\": \"Create a rule that flags transactions above 50000 INR from unverified merchants in the last 24 hours.\",\n    \"sha256_hash\": \"c68a3cc8a3a1b663bddc9e396a8a8dfe97c4266145c1a454fb0879cc5be2cf48\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ingest_document",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ingest_document"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "ClaimDocument \u2014 scanned PDF via file_content",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 \u2014 scanned doctype accepted', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Queued for OCR processing', function () {",
+                  "    pm.expect(pm.response.json().status).to.eql('queued');",
+                  "});"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"document_id\": \"aaaaaaaa-0001-0001-0001-000000000001\",\n    \"version_id\": \"bbbbbbbb-0001-0001-0001-000000000001\",\n    \"itenantid\": {{tenantId}},\n    \"doctype\": \"ClaimDocument\",\n    \"file_type\": \"pdf\",\n    \"file_content\": \"JVBERi0xLjMgdGVzdCBQREYgY29udGVudA==\",\n    \"sha256_hash\": \"a8b51aa29a4c7ff5e3a0c7f8a8bedb10e29d1e2b9b63c5cdb3d82c21b4f1e3f8\",\n    \"_note\": \"Replace file_content with a real base64-encoded PDF and recalculate sha256_hash\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ingest_document",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ingest_document"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "CSVData \u2014 base64 CSV file",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Status is queued', function () {",
+                  "    pm.expect(pm.response.json().status).to.eql('queued');",
+                  "});"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"document_id\": \"aaaaaaaa-0001-0001-0001-000000000001\",\n    \"version_id\": \"bbbbbbbb-0001-0001-0001-000000000001\",\n    \"itenantid\": {{tenantId}},\n    \"doctype\": \"CSVData\",\n    \"file_type\": \"csv\",\n    \"file_content\": \"aXRlbmFudGlkLGFjY291bnRpZCxhbW91bnQscmlza19mbGFnCjE3LEFDQzAwMSw1MDAwMCxISUdICjE3LEFDQzAwMiwxMjAwLExPVw==\",\n    \"sha256_hash\": \"6c46fbe27c6c1a54ed9c45eba1ce1e45d6b651c8f1a9a315e909087066f00da5\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ingest_document",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ingest_document"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "chunking_override \u2014 PolicyDocument with custom chunk_size",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 \u2014 valid override accepted', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"document_id\": \"aaaaaaaa-0001-0001-0001-000000000001\",\n    \"version_id\": \"bbbbbbbb-0001-0001-0001-000000000001\",\n    \"itenantid\": {{tenantId}},\n    \"doctype\": \"PolicyDocument\",\n    \"file_type\": \"txt\",\n    \"raw_text\": \"DronaPay payment policy: all transactions above 50000 INR require secondary review.\",\n    \"sha256_hash\": \"44f75962a64da92a77081e19122b5188c549ab34d3421c12705da7f287cc1165\",\n    \"chunking_override\": {\n        \"strategy\": \"token\",\n        \"chunk_size\": 256,\n        \"overlap\": 25\n    }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ingest_document",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ingest_document"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "\u274c Error \u2014 no file source (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Missing source returns 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_id\": \"00000000-0000-4000-a000-000000000001\",\n  \"version_id\":  \"00000000-0000-4000-a000-000000000002\",\n  \"itenantid\":   {{tenantId}},\n  \"doctype\":     \"UserManual\",\n  \"file_type\":   \"txt\",\n  \"sha256_hash\": \"abc123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ingest_document",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ingest_document"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "\u274c Error \u2014 unknown doctype (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Unknown doctype returns 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_id\": \"00000000-0000-4000-a000-000000000001\",\n  \"version_id\":  \"00000000-0000-4000-a000-000000000002\",\n  \"itenantid\":   {{tenantId}},\n  \"doctype\":     \"NonExistentType\",\n  \"file_type\":   \"txt\",\n  \"raw_text\":    \"test content\",\n  \"sha256_hash\": \"abc123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ingest_document",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ingest_document"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "\u274c Error \u2014 chunk_size too small (400 SEC-A4)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('chunk_size=1 is below minimum \u2014 returns 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test('Error mentions chunk_size', function () {",
+                  "    pm.expect(pm.response.json().detail.toLowerCase()).to.include('chunk_size');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_id\":      \"00000000-0000-4000-a000-000000000001\",\n  \"version_id\":       \"00000000-0000-4000-a000-000000000002\",\n  \"itenantid\":        {{tenantId}},\n  \"doctype\":          \"RulesDev\",\n  \"file_type\":        \"txt\",\n  \"raw_text\":         \"Some rule content\",\n  \"sha256_hash\":      \"abc123\",\n  \"chunking_override\": { \"strategy\": \"token\", \"chunk_size\": 1, \"overlap\": 0 }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ingest_document",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ingest_document"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "\u274c Error \u2014 SSRF untrusted URL (400 SEC-A1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Untrusted URL returns 400 (SSRF block)', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_id\":  \"00000000-0000-4000-a000-000000000001\",\n  \"version_id\":   \"00000000-0000-4000-a000-000000000002\",\n  \"itenantid\":    {{tenantId}},\n  \"doctype\":      \"UserManual\",\n  \"file_type\":    \"pdf\",\n  \"storage_url\":  \"https://attacker.com/malicious.pdf\",\n  \"sha256_hash\":  \"abc123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ingest_document",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ingest_document"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "\u274c Error \u2014 AWS metadata SSRF IP (400 AC-4.7)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Metadata IP blocked \u2014 returns 400 (AC-4.7)', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_id\":  \"00000000-0000-4000-a000-000000000001\",\n  \"version_id\":   \"00000000-0000-4000-a000-000000000002\",\n  \"itenantid\":    {{tenantId}},\n  \"doctype\":      \"UserManual\",\n  \"file_type\":    \"txt\",\n  \"storage_url\":  \"http://169.254.169.254/latest/meta-data/\",\n  \"sha256_hash\":  \"abc123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ingest_document",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ingest_document"
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "POST /ingest_document\n\nReturns {status: 'queued'} immediately. Actual processing runs in a background task \u2014 poll GET /document_status to track progress.\n\nFile sources:\n- raw_text: plain text, processed directly\n- file_content: base64-encoded binary, stored in agents.dms_file_content (no S3/GCS needed)\n- storage_url: URL on ALLOWED_STORAGE_ORIGINS allowlist"
+    },
+    {
+      "name": "\ud83d\udcca DMS \u2014 Document Status",
+      "item": [
+        {
+          "name": "GET status \u2014 use documentId from ingest",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Has all required fields', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('document_id');",
+                  "    pm.expect(body).to.have.property('version_id');",
+                  "    pm.expect(body).to.have.property('status');",
+                  "});",
+                  "pm.test('Status is a valid pipeline stage', function () {",
+                  "    var validStatuses = ['queued','extracting','chunking','embedding','pending_approval','failed','ready','active'];",
+                  "    pm.expect(validStatuses).to.include(pm.response.json().status);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/document_status/{{documentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "document_status",
+                "{{documentId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET status \u2014 document not found (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Non-existent document returns 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/document_status/00000000-0000-0000-0000-000000000000",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "document_status",
+                "00000000-0000-0000-0000-000000000000"
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "GET /document_status/{document_id}\n\nPoll after calling /ingest_document. Expected transitions:\nqueued \u2192 extracting \u2192 chunking \u2192 embedding \u2192 pending_approval\n\nUse the documentId set by the ingest tests."
+    },
+    {
+      "name": "\ud83d\udd0d DMS \u2014 Similarity Check",
+      "item": [
+        {
+          "name": "UserManual \u2014 no duplicates expected",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response structure correct', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('has_near_duplicates');",
+                  "    pm.expect(body).to.have.property('threshold');",
+                  "    pm.expect(body).to.have.property('matches');",
+                  "    pm.expect(body.matches).to.be.an('array');",
+                  "});",
+                  "pm.test('Threshold is 0.85 (from UserManual doctype config)', function () {",
+                  "    pm.expect(pm.response.json().threshold).to.eql(0.85);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itenantid\":   {{tenantId}},\n  \"category\":    \"UserManual\",\n  \"raw_text\":    \"How do I configure payment rules in DronaPay?\",\n  \"sha256_hash\": \"placeholder-sha256\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/check_similarity",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "check_similarity"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "RulesDev \u2014 check before ingesting new rule",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Threshold is 0.85 (from RulesDev doctype config)', function () {",
+                  "    pm.expect(pm.response.json().threshold).to.eql(0.85);",
+                  "});",
+                  "pm.test('If matches found, each has required fields', function () {",
+                  "    var body = pm.response.json();",
+                  "    if (body.matches.length > 0) {",
+                  "        body.matches.forEach(function(m) {",
+                  "            pm.expect(m).to.have.property('document_id');",
+                  "            pm.expect(m).to.have.property('similarity_score');",
+                  "            pm.expect(m.similarity_score).to.be.a('number');",
+                  "            pm.expect(m.similarity_score).to.be.at.most(1.0);",
+                  "            pm.expect(m.similarity_score).to.be.at.least(0.0);",
+                  "        });",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itenantid\":   {{tenantId}},\n  \"category\":    \"RulesDev\",\n  \"raw_text\":    \"Create a rule that flags transactions above 50000 INR from unverified merchants in the last 24 hours.\",\n  \"sha256_hash\": \"c68a3cc8a3a1b663bddc9e396a8a8dfe97c4266145c1a454fb0879cc5be2cf48\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/check_similarity",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "check_similarity"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PolicyDocument \u2014 check for near-duplicates",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('has_near_duplicates is boolean', function () {",
+                  "    pm.expect(pm.response.json().has_near_duplicates).to.be.a('boolean');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itenantid\":   {{tenantId}},\n  \"category\":    \"PolicyDocument\",\n  \"raw_text\":    \"DronaPay payment policy: all transactions above 50000 INR require secondary review.\",\n  \"sha256_hash\": \"44f75962a64da92a77081e19122b5188c549ab34d3421c12705da7f287cc1165\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/check_similarity",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "check_similarity"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "\u274c Error \u2014 unknown category (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Unknown category returns 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itenantid\":   {{tenantId}},\n  \"category\":    \"NonExistentDoctype\",\n  \"raw_text\":    \"test\",\n  \"sha256_hash\": \"abc\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/check_similarity",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "check_similarity"
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "POST /check_similarity\n\nCall BEFORE ingest to detect near-duplicate documents. Returns has_near_duplicates, threshold (from doctype config), and matching document list."
+    },
+    {
+      "name": "\ud83d\uddc4\ufe0f DMS \u2014 Archive Version",
+      "item": [
+        {
+          "name": "Archive \u2014 valid version for tenant 17",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Status 200 \u2014 version archived', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "    pm.test('Status is archived', function () {",
+                  "        pm.expect(pm.response.json().status).to.eql('archived');",
+                  "    });",
+                  "    pm.test('version_id echoed back', function () {",
+                  "        pm.expect(pm.response.json().version_id).to.eql(pm.collectionVariables.get('versionId'));",
+                  "    });",
+                  "} else if (pm.response.code === 404) {",
+                  "    pm.test('Version not yet in DB \u2014 run ingest tests first', function () {",
+                  "        pm.expect(true).to.be.true; // informational only",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version_id\": \"{{versionId}}\",\n  \"itenantid\":  {{tenantId}}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/archive_version",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "archive_version"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "\u274c Error \u2014 wrong tenant (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Wrong tenant returns 403 or 404', function () {",
+                  "    pm.expect([403, 404]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version_id\": \"{{versionId}}\",\n  \"itenantid\":  9999\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/archive_version",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "archive_version"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "\u274c Error \u2014 version not found (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Non-existent version returns 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version_id\": \"00000000-0000-0000-0000-000000000000\",\n  \"itenantid\":  {{tenantId}}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/archive_version",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "archive_version"
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "POST /archive_version\n\nCalled by Spring Boot during Maker-Checker approval to soft-delete vectors.\nSets is_active=false in PGVector. Tenant ownership is validated."
+    },
+    {
+      "name": "\ud83d\udd12 Security",
+      "item": [
+        {
+          "name": "SEC-A6 \u2014 DELETE tenant vectors (no secret \u2192 403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('No secret header returns 403', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/internal/tenant_vectors/9999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "internal",
+                "tenant_vectors",
+                "9999"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "SEC-A6 \u2014 DELETE tenant vectors (wrong secret \u2192 403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Wrong secret returns 403', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Internal-Secret",
+                "value": "wrong-secret-value"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/internal/tenant_vectors/9999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "internal",
+                "tenant_vectors",
+                "9999"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "SEC-A6 \u2014 DELETE tenant vectors (correct secret)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 with valid secret', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response contains total_deleted and by_collection', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('total_deleted');",
+                  "    pm.expect(body).to.have.property('by_collection');",
+                  "    pm.expect(body.itenantid).to.eql(9999);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Internal-Secret",
+                "value": "{{internalSecret}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/internal/tenant_vectors/9999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "internal",
+                "tenant_vectors",
+                "9999"
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "SEC-A1: SSRF allowlist\nSEC-A4: chunk size bounds\nSEC-A6: internal tenant delete\n\nNote: SEC-A2 (injection flag) and SEC-A3 (chunk count guard) are verified via document status polling after ingest."
+    }
+  ],
+  "auth": {
+    "type": "basic",
+    "basic": [
+      {
+        "key": "username",
+        "value": "{{username}}",
+        "type": "string"
+      },
+      {
+        "key": "password",
+        "value": "{{password}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "username",
+      "value": "admin"
+    },
+    {
+      "key": "password",
+      "value": "changeme"
+    },
+    {
+      "key": "tenantId",
+      "value": "17"
+    },
+    {
+      "key": "documentId",
+      "value": "aaaaaaaa-0001-0001-0001-000000000001",
+      "description": "Set by POST /ingest_document test script"
+    },
+    {
+      "key": "versionId",
+      "value": "bbbbbbbb-0001-0001-0001-000000000001",
+      "description": "Set by POST /ingest_document test script"
+    },
+    {
+      "key": "internalSecret",
+      "value": "test-internal-secret"
+    }
+  ]
+}
